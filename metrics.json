@@ -1,0 +1,7 @@
+{
+  "holdout_accuracy": 0.8,
+  "holdout_f1": 0.7717391304347826,
+  "holdout_auc": 0.8647959183673469,
+  "n_train": 838,
+  "n_test": 210
+}
