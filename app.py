@@ -1,17 +1,51 @@
 import json
+import warnings
 
 import joblib
 import pandas as pd
 import streamlit as st
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier, VotingClassifier
+from sklearn.exceptions import InconsistentVersionWarning
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
 
 from features import make_features, load_data, Maps
 
 st.set_page_config(page_title="CSGO Analyst", page_icon="csgo_logo.png", layout="wide")
 
 
+def make_pipe(clf):
+    return Pipeline([("scaler", StandardScaler()), ("clf", clf)])
+
+
+def train_bundle():
+    """Huấn luyện lại model ngay trên máy chạy app (dùng khi model.pkl không nạp được)."""
+    d = load_data()
+    X, y = make_features(d), d["win"]
+    ensemble = VotingClassifier([
+        ("lr", LogisticRegression(C=0.1, max_iter=2000)),
+        ("svc", SVC(C=1, probability=True, random_state=0)),
+        ("gb", GradientBoostingClassifier(
+            n_estimators=100, max_depth=2, learning_rate=0.05, random_state=0)),
+        ("rf", RandomForestClassifier(
+            n_estimators=300, min_samples_leaf=3, random_state=0)),
+    ], voting="soft")
+    return {"model": make_pipe(ensemble).fit(X, y),
+            "explainer": make_pipe(LogisticRegression(C=0.1, max_iter=2000)).fit(X, y),
+            "features": list(X.columns)}
+
+
 @st.cache_resource
 def get_model():
-    return joblib.load("model.pkl")
+    # Nếu model.pkl lệch phiên bản thư viện (hoặc không đọc được) thì tự huấn luyện lại
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", InconsistentVersionWarning)
+            return joblib.load("model.pkl")
+    except Exception:
+        return train_bundle()
 
 
 @st.cache_data
